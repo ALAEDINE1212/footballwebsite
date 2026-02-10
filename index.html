@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Friends Football Stats</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>⚽ Squad Leaderboard</h1>
+
+    <div id="login-section">
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Password">
+        <button id="btn-login">Admin Login</button>
+    </div>
+
+    <div id="admin-controls" style="display: none;">
+        <h3>Add New Player</h3>
+        <input type="text" id="p-name" placeholder="Name">
+        <input type="number" id="p-goals" placeholder="Goals">
+        <input type="number" id="p-assists" placeholder="Assists">
+        <input type="number" id="p-matches" placeholder="Matches">
+        <button id="btn-add">Add Player</button>
+    </div>
+
+    <table id="stats-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Name</th>
+                <th>Matches</th>
+                <th>Goals</th>
+                <th>Assists</th>
+                <th>G+A</th>
+                <th class="admin-only" style="display:none">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="table-body">
+            </tbody>
+    </table>
+
+    <script type="module" src="script.js"></script>
+</body>
+</html>
