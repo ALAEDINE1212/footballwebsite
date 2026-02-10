@@ -1,7 +1,9 @@
-import { initializeApp } from "firebase/app";
-import { getDatabase, ref, push, onValue } from "firebase/database";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
+// 1. Corrected CDN Imports for Browser Compatibility
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
+// 2. Your Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDOpMWxEuB74BkYXx0TqCqXEefEurSqRF0",
     authDomain: "football-306c0.firebaseapp.com",
@@ -12,25 +14,32 @@ const firebaseConfig = {
     appId: "1:783956701088:web:fd770407aab845e3e4fec5"
 };
 
+// 3. Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-// --- Handle Login ---
-document.getElementById('btn-login').addEventListener('click', async () => {
-    const email = document.getElementById('email').value;
-    const pass = document.getElementById('password').value;
-    try {
-        await signInWithEmailAndPassword(auth, email, pass);
-    } catch (error) {
-        alert("Login failed: " + error.message);
-    }
-});
+// --- Admin Authentication Logic ---
+const loginBtn = document.getElementById('btn-login');
+if (loginBtn) {
+    loginBtn.addEventListener('click', async () => {
+        const email = document.getElementById('email').value;
+        const pass = document.getElementById('password').value;
+        try {
+            await signInWithEmailAndPassword(auth, email, pass);
+            console.log("Logged in successfully!");
+        } catch (error) {
+            alert("Login failed: " + error.message);
+        }
+    });
+}
 
-// --- Handle Logout ---
-document.getElementById('btn-logout').onclick = () => signOut(auth);
+const logoutBtn = document.getElementById('btn-logout');
+if (logoutBtn) {
+    logoutBtn.onclick = () => signOut(auth);
+}
 
-// --- Check Login State ---
+// --- Watch Auth State (Show/Hide Admin UI) ---
 onAuthStateChanged(auth, (user) => {
     const adminPanel = document.getElementById('admin-panel');
     const loginForm = document.getElementById('login-form');
@@ -47,30 +56,47 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
-// --- Add Player ---
-document.getElementById('btn-add').onclick = () => {
-    const player = {
-        name: document.getElementById('p-name').value,
-        matches: document.getElementById('p-matches').value,
-        goals: document.getElementById('p-goals').value,
-        assists: document.getElementById('p-assists').value
-    };
-    push(ref(db, 'players'), player);
-};
+// --- Add Player Logic ---
+const addBtn = document.getElementById('btn-add');
+if (addBtn) {
+    addBtn.onclick = () => {
+        const name = document.getElementById('p-name').value;
+        const matches = document.getElementById('p-matches').value;
+        const goals = document.getElementById('p-goals').value;
+        const assists = document.getElementById('p-assists').value;
 
-// --- Render Table ---
+        if(name) {
+            push(ref(db, 'players'), {
+                name: name,
+                matches: matches || 0,
+                goals: goals || 0,
+                assists: assists || 0
+            });
+            // Clear inputs
+            document.getElementById('p-name').value = '';
+            document.getElementById('p-matches').value = '';
+            document.getElementById('p-goals').value = '';
+            document.getElementById('p-assists').value = '';
+        }
+    };
+}
+
+// --- Realtime Table Rendering ---
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     const tableBody = document.getElementById('table-body');
     tableBody.innerHTML = '';
     
     if (data) {
-        const players = Object.values(data).map(p => ({
-            ...p,
-            ga: Number(p.goals) + Number(p.assists)
-        })).sort((a, b) => b.ga - a.ga);
+        // Convert to array and calculate G+A
+        const players = Object.keys(data).map(key => ({
+            id: key,
+            ...data[key],
+            ga: Number(data[key].goals || 0) + Number(data[key].assists || 0)
+        })).sort((a, b) => b.ga - a.ga); // Sort by highest G+A
 
         players.forEach((p, i) => {
+            const isAdmin = auth.currentUser;
             tableBody.innerHTML += `
                 <tr>
                     <td>${i+1}</td>
