@@ -1,9 +1,7 @@
-// 1. Corrected CDN Imports for Browser Compatibility
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
-// 2. Your Firebase Configuration
 const firebaseConfig = {
     apiKey: "AIzaSyDOpMWxEuB74BkYXx0TqCqXEefEurSqRF0",
     authDomain: "football-306c0.firebaseapp.com",
@@ -14,98 +12,67 @@ const firebaseConfig = {
     appId: "1:783956701088:web:fd770407aab845e3e4fec5"
 };
 
-// 3. Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-// --- Admin Authentication Logic ---
-const loginBtn = document.getElementById('btn-login');
-if (loginBtn) {
-    loginBtn.addEventListener('click', async () => {
-        const email = document.getElementById('email').value;
-        const pass = document.getElementById('password').value;
-        try {
-            await signInWithEmailAndPassword(auth, email, pass);
-            console.log("Logged in successfully!");
-        } catch (error) {
-            alert("Login failed: " + error.message);
-        }
-    });
-}
-
-const logoutBtn = document.getElementById('btn-logout');
-if (logoutBtn) {
-    logoutBtn.onclick = () => signOut(auth);
-}
-
-// --- Watch Auth State (Show/Hide Admin UI) ---
-onAuthStateChanged(auth, (user) => {
-    const adminPanel = document.getElementById('admin-panel');
-    const loginForm = document.getElementById('login-form');
-    const logoutBtn = document.getElementById('btn-logout');
-
-    if (user) {
-        adminPanel.style.display = 'block';
-        loginForm.style.display = 'none';
-        logoutBtn.style.display = 'block';
-    } else {
-        adminPanel.style.display = 'none';
-        loginForm.style.display = 'block';
-        logoutBtn.style.display = 'none';
+// --- Admin Global Functions ---
+window.editPlayer = (id, name, g, a, mp) => {
+    const nG = prompt(`Goals for ${name}:`, g);
+    const nA = prompt(`Assists for ${name}:`, a);
+    const nMP = prompt(`Matches for ${name}:`, mp);
+    if (nG !== null && nA !== null && nMP !== null) {
+        update(ref(db, `players/${id}`), { goals: Number(nG), assists: Number(nA), matches: Number(nMP) });
     }
+};
+
+window.deletePlayer = (id, name) => {
+    if (confirm(`Delete ${name}?`)) remove(ref(db, `players/${id}`));
+};
+
+// --- Auth Handling ---
+onAuthStateChanged(auth, (user) => {
+    document.getElementById('admin-panel').style.display = user ? 'block' : 'none';
+    document.getElementById('login-form').style.display = user ? 'none' : 'block';
+    document.getElementById('btn-logout').style.display = user ? 'block' : 'none';
+    document.getElementById('admin-header').style.display = user ? 'table-cell' : 'none';
 });
 
-// --- Add Player Logic ---
-const addBtn = document.getElementById('btn-add');
-if (addBtn) {
-    addBtn.onclick = () => {
-        const name = document.getElementById('p-name').value;
-        const matches = document.getElementById('p-matches').value;
-        const goals = document.getElementById('p-goals').value;
-        const assists = document.getElementById('p-assists').value;
+document.getElementById('btn-login').onclick = async () => {
+    const e = document.getElementById('email').value;
+    const p = document.getElementById('password').value;
+    try { await signInWithEmailAndPassword(auth, e, p); } catch (err) { alert(err.message); }
+};
 
-        if(name) {
-            push(ref(db, 'players'), {
-                name: name,
-                matches: matches || 0,
-                goals: goals || 0,
-                assists: assists || 0
-            });
-            // Clear inputs
-            document.getElementById('p-name').value = '';
-            document.getElementById('p-matches').value = '';
-            document.getElementById('p-goals').value = '';
-            document.getElementById('p-assists').value = '';
-        }
-    };
-}
+document.getElementById('btn-logout').onclick = () => signOut(auth);
 
-// --- Realtime Table Rendering ---
+document.getElementById('btn-add').onclick = () => {
+    const name = document.getElementById('p-name').value;
+    if (name) {
+        push(ref(db, 'players'), {
+            name, 
+            matches: document.getElementById('p-matches').value || 0,
+            goals: document.getElementById('p-goals').value || 0,
+            assists: document.getElementById('p-assists').value || 0
+        });
+    }
+};
+
+// --- Data Sync ---
 onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     const tableBody = document.getElementById('table-body');
     tableBody.innerHTML = '';
-    
     if (data) {
-        // Convert to array and calculate G+A
-        const players = Object.keys(data).map(key => ({
-            id: key,
-            ...data[key],
-            ga: Number(data[key].goals || 0) + Number(data[key].assists || 0)
-        })).sort((a, b) => b.ga - a.ga); // Sort by highest G+A
+        const players = Object.keys(data).map(k => ({ id: k, ...data[k], ga: Number(data[k].goals) + Number(data[k].assists) }))
+            .sort((a, b) => b.ga - a.ga);
 
         players.forEach((p, i) => {
-            const isAdmin = auth.currentUser;
-            tableBody.innerHTML += `
-                <tr>
-                    <td>${i+1}</td>
-                    <td>${p.name}</td>
-                    <td>${p.matches}</td>
-                    <td>${p.goals}</td>
-                    <td>${p.assists}</td>
-                    <td class="highlight">${p.ga}</td>
-                </tr>`;
+            const adminCols = auth.currentUser ? `<td>
+                <button class="btn-edit" onclick="editPlayer('${p.id}','${p.name}',${p.goals},${p.assists},${p.matches})">Edit</button>
+                <button class="btn-del" onclick="deletePlayer('${p.id}','${p.name}')">Delete</button>
+            </td>` : '';
+            tableBody.innerHTML += `<tr><td>${i+1}</td><td>${p.name}</td><td>${p.matches}</td><td>${p.goals}</td><td>${p.assists}</td><td class="highlight">${p.ga}</td>${adminCols}</tr>`;
         });
     }
 });
