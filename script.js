@@ -1,76 +1,85 @@
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, push, onValue, update } from "firebase/database";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { getDatabase, ref, push, onValue } from "firebase/database";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDOpMWxEuB74BkYXx0TqCqXEefEurSqRF0",
-  authDomain: "football-306c0.firebaseapp.com",
-  databaseURL: "https://football-306c0-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "football-306c0",
-  storageBucket: "football-306c0.firebasestorage.app",
-  messagingSenderId: "783956701088",
-  appId: "1:783956701088:web:fd770407aab845e3e4fec5"
+    apiKey: "AIzaSyDOpMWxEuB74BkYXx0TqCqXEefEurSqRF0",
+    authDomain: "football-306c0.firebaseapp.com",
+    databaseURL: "https://football-306c0-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "football-306c0",
+    storageBucket: "football-306c0.firebasestorage.app",
+    messagingSenderId: "783956701088",
+    appId: "1:783956701088:web:fd770407aab845e3e4fec5"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-// --- Admin Authentication ---
-document.getElementById('btn-login').onclick = () => {
+// --- Handle Login ---
+document.getElementById('btn-login').addEventListener('click', async () => {
     const email = document.getElementById('email').value;
     const pass = document.getElementById('password').value;
-    signInWithEmailAndPassword(auth, email, pass).catch(err => alert(err.message));
-};
-
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        document.getElementById('admin-controls').style.display = 'block';
-        document.getElementById('login-section').style.display = 'none';
+    try {
+        await signInWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+        alert("Login failed: " + error.message);
     }
 });
 
-// --- Read & Display Data ---
-const playersRef = ref(db, 'players');
-onValue(playersRef, (snapshot) => {
+// --- Handle Logout ---
+document.getElementById('btn-logout').onclick = () => signOut(auth);
+
+// --- Check Login State ---
+onAuthStateChanged(auth, (user) => {
+    const adminPanel = document.getElementById('admin-panel');
+    const loginForm = document.getElementById('login-form');
+    const logoutBtn = document.getElementById('btn-logout');
+
+    if (user) {
+        adminPanel.style.display = 'block';
+        loginForm.style.display = 'none';
+        logoutBtn.style.display = 'block';
+    } else {
+        adminPanel.style.display = 'none';
+        loginForm.style.display = 'block';
+        logoutBtn.style.display = 'none';
+    }
+});
+
+// --- Add Player ---
+document.getElementById('btn-add').onclick = () => {
+    const player = {
+        name: document.getElementById('p-name').value,
+        matches: document.getElementById('p-matches').value,
+        goals: document.getElementById('p-goals').value,
+        assists: document.getElementById('p-assists').value
+    };
+    push(ref(db, 'players'), player);
+};
+
+// --- Render Table ---
+onValue(ref(db, 'players'), (snapshot) => {
     const data = snapshot.val();
     const tableBody = document.getElementById('table-body');
     tableBody.innerHTML = '';
-
+    
     if (data) {
-        // Convert object to array and calculate G+A
-        let playersArray = Object.keys(data).map(key => ({
-            id: key,
-            ...data[key],
-            ga: (parseInt(data[key].goals) || 0) + (parseInt(data[key].assists) || 0)
-        }));
+        const players = Object.values(data).map(p => ({
+            ...p,
+            ga: Number(p.goals) + Number(p.assists)
+        })).sort((a, b) => b.ga - a.ga);
 
-        // Sort by Goals (or G+A)
-        playersArray.sort((a, b) => b.ga - a.ga);
-
-        playersArray.forEach((player, index) => {
-            const row = `
+        players.forEach((p, i) => {
+            tableBody.innerHTML += `
                 <tr>
-                    <td>${index + 1}</td>
-                    <td>${player.name}</td>
-                    <td>${player.matches}</td>
-                    <td>${player.goals}</td>
-                    <td>${player.assists}</td>
-                    <td><strong>${player.ga}</strong></td>
-                    ${auth.currentUser ? `<td><button onclick="editStats('${player.id}')">Edit</button></td>` : ''}
+                    <td>${i+1}</td>
+                    <td>${p.name}</td>
+                    <td>${p.matches}</td>
+                    <td>${p.goals}</td>
+                    <td>${p.assists}</td>
+                    <td class="highlight">${p.ga}</td>
                 </tr>`;
-            tableBody.innerHTML += row;
         });
     }
 });
-
-// --- Write Data (Admin Only) ---
-document.getElementById('btn-add').onclick = () => {
-    const newPlayer = {
-        name: document.getElementById('p-name').value,
-        goals: document.getElementById('p-goals').value,
-        assists: document.getElementById('p-assists').value,
-        matches: document.getElementById('p-matches').value
-    };
-    push(ref(db, 'players'), newPlayer);
-};
